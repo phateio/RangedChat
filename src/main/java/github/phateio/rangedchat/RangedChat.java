@@ -16,7 +16,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class RangedChat extends JavaPlugin implements Listener {
     public static int DISTANCE = 256;
@@ -54,20 +53,21 @@ public class RangedChat extends JavaPlugin implements Listener {
 
         Location playerLocation = player.getLocation();
 
-        Stream<Player> recipients = event.getRecipients().stream()
-                .filter(pl -> pl.getWorld() == playerWorld && pl.getLocation().distance(playerLocation) <= DISTANCE);
+        List<Player> recipients = event.getRecipients().stream()
+                .filter(pl -> pl.getWorld() == playerWorld && pl.getLocation().distance(playerLocation) <= DISTANCE)
+                .collect(Collectors.toList());
 
         TextComponent hoverMessage;
 
-        if (recipients.count() == 1) {
+        if (recipients.size() == 1) {
             hoverMessage = new TextComponent(PREFIX_COLOR2 + PREFIX + message);
             hoverMessage.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(NOONE_SEEN_MESSAGE)));
         } else {
             hoverMessage = new TextComponent(PREFIX_COLOR1 + PREFIX + message);
 
-            final String detailPlayersMessage = recipients.limit(9).map(Player::getName).collect(Collectors.joining(", "));
+            final String detailPlayersMessage = recipients.stream().limit(9).map(Player::getName).collect(Collectors.joining(", "));
 
-            long overLimit = recipients.count() - 9; // TODO config limit
+            long overLimit = recipients.size() - 9; // TODO config limit
 
             final String hoverText = overLimit > 0
                     ? EXTRA_SEEN_MESSAGE.replace("%players%", detailPlayersMessage).replace("%otherCount%", overLimit + "")
