@@ -1,10 +1,8 @@
 package github.phateio.rangedchat;
 
 import net.md_5.bungee.api.ChatColor;
-import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.command.Command;
@@ -16,11 +14,11 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.ArrayList;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-public class RangedChat extends JavaPlugin {
+public class RangedChat extends JavaPlugin implements Listener {
     public static int DISTANCE = 256;
     public static String PREFIX = "[RC] ";
     public static ChatColor PREFIX_COLOR1 = ChatColor.LIGHT_PURPLE;
@@ -32,93 +30,80 @@ public class RangedChat extends JavaPlugin {
     public static String EXTRA_SEEN_MESSAGE = ChatColor.DARK_PURPLE + "Seen by %players% and other %otherCount% players";
     public static String NOONE_SEEN_MESSAGE = ChatColor.DARK_PURPLE + "No one seen your message";
 
-    public static ArrayList<String> EnabledPlayerNameList = new ArrayList();
-
-    private static FileConfiguration config;
+    public static Set<UUID> EnabledPlayerUUID = new HashSet<>();
 
     @Override
     public void onEnable() {
         initConfig();
         loadConfig();
+        getServer().getPluginManager().registerEvents(this, this);
+    }
 
-        getServer().getPluginManager().registerEvents(new Listener() {
+    @EventHandler(ignoreCancelled = true)
+    public void playerChat(AsyncPlayerChatEvent event) {
+        Player player = event.getPlayer();
+        if (!EnabledPlayerUUID.contains(player.getUniqueId())) return;
+        event.setCancelled(true);
 
-            @EventHandler
-            public void playerChat(AsyncPlayerChatEvent event) {
-                if (event.isCancelled()) {
-                    return;
-                }
+        final String playerName = player.getName();
+        final World playerWorld = player.getWorld();
+        final String rawMessage = event.getMessage();
+        final String message = FORMAT.replace("%player%", playerName).replace("%message%", rawMessage);
 
-                Player player = event.getPlayer();
-                String playerName = player.getName();
-                World playerWorld = player.getWorld();
-                String rawMessage = event.getMessage();
-                String message = FORMAT.replace("%player%", playerName).replace("%message%", rawMessage);
+        getServer().getConsoleSender().sendMessage(PREFIX + message);
 
-                if (!EnabledPlayerNameList.contains(playerName)) {
-                    return;
-                }
+        Location playerLocation = player.getLocation();
 
-                event.setCancelled(true);
-                Bukkit.getServer().getConsoleSender().sendMessage(PREFIX + message);
+        Stream<Player> recipients = event.getRecipients().stream()
+                .filter(pl -> pl.getWorld() == playerWorld && pl.getLocation().distance(playerLocation) <= DISTANCE);
 
-                Location playerLocation = player.getLocation();
+        TextComponent hoverMessage;
 
-                Set<Player> recipients = event.getRecipients().stream().filter(pl -> {
-                    return pl.getWorld() == playerWorld && pl.getLocation().distance(playerLocation) <= DISTANCE;
-                }).collect(Collectors.toSet());
+        if (recipients.count() == 1) {
+            hoverMessage = new TextComponent(PREFIX_COLOR2 + PREFIX + message);
+            hoverMessage.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(NOONE_SEEN_MESSAGE)));
+        } else {
+            hoverMessage = new TextComponent(PREFIX_COLOR1 + PREFIX + message);
 
-                TextComponent hoverMessage;
+            final String detailPlayersMessage = recipients.limit(9).map(Player::getName).collect(Collectors.joining(", "));
 
-                if (recipients.size() == 1) {
-                    hoverMessage = new TextComponent(PREFIX_COLOR2 + PREFIX + message);
-                    String detailPlayersMessage = String.join(", ", recipients.stream().map(pl -> pl.getName()).collect(Collectors.toSet()));
-                    String finalString = NOONE_SEEN_MESSAGE;
-                    hoverMessage.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder(finalString).create()));
-                } else if (recipients.size() < 10) {
-                    hoverMessage = new TextComponent(PREFIX_COLOR1 + PREFIX + message);
-                    String detailPlayersMessage = String.join(", ", recipients.stream().map(pl -> pl.getName()).collect(Collectors.toSet()));
-                    String finalString = HOVER_SEEN_MESSAGE.replace("%players%", detailPlayersMessage);
-                    hoverMessage.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder(finalString).create()));
-                } else {
-                    hoverMessage = new TextComponent(PREFIX_COLOR1 + PREFIX + message);
-                    Set<Player> firstNineRecipients = recipients.stream().limit(9).collect(Collectors.toSet());
-                    int otherCount = recipients.size() - firstNineRecipients.size();
-                    String detailPlayersMessage = String.join(", ", firstNineRecipients.stream().map(pl -> pl.getName()).collect(Collectors.toSet()));
-                    String finalString = EXTRA_SEEN_MESSAGE.replace("%players%", detailPlayersMessage).replace("%otherCount%", Integer.toString(otherCount));
-                    hoverMessage.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder(finalString).create()));
-                }
+            long overLimit = recipients.count() - 9; // TODO config limit
 
-                for (Player pl : recipients) {
-                    pl.spigot().sendMessage(hoverMessage);
-                }
-            }
-        }, this);
+            final String hoverText = overLimit > 0
+                    ? EXTRA_SEEN_MESSAGE.replace("%players%", detailPlayersMessage).replace("%otherCount%", overLimit + "")
+                    : HOVER_SEEN_MESSAGE.replace("%players%", detailPlayersMessage);
+
+            hoverMessage.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, TextComponent.fromLegacyText(hoverText)));
+        }
+
+        recipients.forEach(p -> p.spigot().sendMessage(hoverMessage));
     }
 
     @Override
-    public void onDisable() {
+    public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+        if (!cmd.getName().equalsIgnoreCase("rc") || !(sender instanceof Player)) return false;
+
+        Player player = (Player) sender;
+        UUID uuid = player.getUniqueId();
+
+        if (EnabledPlayerUUID.contains(uuid)) {
+            EnabledPlayerUUID.remove(uuid);
+            player.sendMessage(PREFIX + LEAVE_MESSAGE);
+        } else {
+            EnabledPlayerUUID.add(uuid);
+            player.sendMessage(PREFIX + ENTER_MESSAGE);
+        }
+
+        return true;
     }
 
-    public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-        if (cmd.getName().equalsIgnoreCase("rc") && sender instanceof Player) {
-            Player player = (Player) sender;
-            String playerName = player.getName();
-
-            if (EnabledPlayerNameList.contains(playerName)) {
-                EnabledPlayerNameList.remove(playerName);
-                player.sendMessage(PREFIX + LEAVE_MESSAGE);
-            } else {
-                EnabledPlayerNameList.add(playerName);
-                player.sendMessage(PREFIX + ENTER_MESSAGE);
-            }
-            return true;
-        }
-        return false;
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        return Collections.emptyList();
     }
 
     private void initConfig() {
-        config = getConfig();
+        FileConfiguration config = getConfig();
         config.addDefault("DISTANCE", DISTANCE);
         config.addDefault("PREFIX", PREFIX);
         config.addDefault("FORMAT", FORMAT);
@@ -127,6 +112,7 @@ public class RangedChat extends JavaPlugin {
     }
 
     private void loadConfig() {
+        FileConfiguration config = getConfig();
         DISTANCE = config.getInt("DISTANCE");
         PREFIX = config.getString("PREFIX");
         FORMAT = config.getString("FORMAT");
