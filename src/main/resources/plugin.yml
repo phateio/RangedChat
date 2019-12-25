@@ -1,0 +1,10 @@
+name: RangedChat
+version: 1.0
+api-version: 1.13
+
+main: github.phateio.rangedchat.RangedChat
+
+commands:
+  rc:
+    description: RangedChat commands
+    usage: /<command>
