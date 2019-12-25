@@ -27,9 +27,40 @@ public class RangedChat extends JavaPlugin implements Listener {
     public static String LEAVE_MESSAGE = ChatColor.AQUA + "You leaved ranged chat mode";
     public static String HOVER_SEEN_MESSAGE = ChatColor.DARK_PURPLE + "Seen by %players%";
     public static String EXTRA_SEEN_MESSAGE = ChatColor.DARK_PURPLE + "Seen by %players% and other %otherCount% players";
+    public static int EXTRA_PLAYER_LIMIT = 9;
     public static String NOONE_SEEN_MESSAGE = ChatColor.DARK_PURPLE + "No one seen your message";
 
-    public static Set<UUID> EnabledPlayerUUID = new HashSet<>();
+    private void initConfig() {
+        FileConfiguration config = getConfig();
+        config.addDefault("DISTANCE", DISTANCE);
+        config.addDefault("PREFIX", PREFIX);
+        config.addDefault("PREFIX_COLOR1", PREFIX_COLOR1.name());
+        config.addDefault("PREFIX_COLOR2", PREFIX_COLOR2.name());
+        config.addDefault("FORMAT", FORMAT);
+        config.addDefault("ENTER_MESSAGE", ENTER_MESSAGE);
+        config.addDefault("LEAVE_MESSAGE", LEAVE_MESSAGE);
+        config.addDefault("HOVER_SEEN_MESSAGE", HOVER_SEEN_MESSAGE);
+        config.addDefault("EXTRA_SEEN_MESSAGE", EXTRA_SEEN_MESSAGE);
+        config.addDefault("EXTRA_PLAYER_LIMIT", EXTRA_PLAYER_LIMIT);
+        config.addDefault("NOONE_SEEN_MESSAGE", NOONE_SEEN_MESSAGE);
+        config.options().copyDefaults(true);
+        saveConfig();
+    }
+
+    private void loadConfig() {
+        FileConfiguration config = getConfig();
+        DISTANCE = config.getInt("DISTANCE");
+        PREFIX = config.getString("PREFIX");
+        PREFIX_COLOR1 = ChatColor.valueOf(config.getString("PREFIX_COLOR1"));
+        PREFIX_COLOR2 = ChatColor.valueOf(config.getString("PREFIX_COLOR2"));
+        FORMAT = config.getString("FORMAT");
+        ENTER_MESSAGE = config.getString("ENTER_MESSAGE");
+        LEAVE_MESSAGE = config.getString("LEAVE_MESSAGE");
+        HOVER_SEEN_MESSAGE = config.getString("HOVER_SEEN_MESSAGE");
+        EXTRA_SEEN_MESSAGE = config.getString("EXTRA_SEEN_MESSAGE");
+        EXTRA_PLAYER_LIMIT = config.getInt("EXTRA_PLAYER_LIMIT");
+        NOONE_SEEN_MESSAGE = config.getString("NOONE_SEEN_MESSAGE");
+    }
 
     @Override
     public void onEnable() {
@@ -37,6 +68,8 @@ public class RangedChat extends JavaPlugin implements Listener {
         loadConfig();
         getServer().getPluginManager().registerEvents(this, this);
     }
+
+    public static Set<UUID> EnabledPlayerUUID = new HashSet<>();
 
     @EventHandler(ignoreCancelled = true)
     public void playerChat(AsyncPlayerChatEvent event) {
@@ -65,9 +98,9 @@ public class RangedChat extends JavaPlugin implements Listener {
         } else {
             hoverMessage = new TextComponent(PREFIX_COLOR1 + PREFIX + message);
 
-            final String detailPlayersMessage = recipients.stream().limit(9).map(Player::getName).collect(Collectors.joining(", "));
+            final String detailPlayersMessage = recipients.stream().limit(EXTRA_PLAYER_LIMIT).map(Player::getName).collect(Collectors.joining(", "));
 
-            long overLimit = recipients.size() - 9; // TODO config limit
+            long overLimit = recipients.size() - EXTRA_PLAYER_LIMIT;
 
             final String hoverText = overLimit > 0
                     ? EXTRA_SEEN_MESSAGE.replace("%players%", detailPlayersMessage).replace("%otherCount%", overLimit + "")
@@ -100,21 +133,5 @@ public class RangedChat extends JavaPlugin implements Listener {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         return Collections.emptyList();
-    }
-
-    private void initConfig() {
-        FileConfiguration config = getConfig();
-        config.addDefault("DISTANCE", DISTANCE);
-        config.addDefault("PREFIX", PREFIX);
-        config.addDefault("FORMAT", FORMAT);
-        config.options().copyDefaults(true);
-        saveConfig();
-    }
-
-    private void loadConfig() {
-        FileConfiguration config = getConfig();
-        DISTANCE = config.getInt("DISTANCE");
-        PREFIX = config.getString("PREFIX");
-        FORMAT = config.getString("FORMAT");
     }
 }
