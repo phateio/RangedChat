@@ -6,7 +6,7 @@
 
     <groupId>github.phateio.rangedchat</groupId>
     <artifactId>RangedChat</artifactId>
-    <version>1.1-SNAPSHOT</version>
+    <version>1.1.1-SNAPSHOT</version>
 
     <name>RangedChat</name>
     <url>https://github.com/phateio/RangedChat</url>
