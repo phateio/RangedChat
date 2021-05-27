@@ -10,6 +10,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -71,7 +72,7 @@ public class RangedChat extends JavaPlugin implements Listener {
 
     public static Set<UUID> EnabledPlayerUUID = new HashSet<>();
 
-    @EventHandler(ignoreCancelled = true)
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
     public void playerChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
         if (!EnabledPlayerUUID.contains(player.getUniqueId())) return;
